@@ -260,9 +260,22 @@ async function generateCoupons(){
   let total = 0;
 
   for(const line of lines){
-    const parts = line.split(',').map(p => p.trim());
+    let parts;
+    if(line.includes(',')){
+      parts = line.split(',').map(p => p.trim()).filter(Boolean);
+    } else {
+      const tokens = line.trim().split(/\s+/);
+      if(tokens.length >= 3){
+        const amtTok = tokens.pop();
+        const phoneTok = tokens.pop();
+        const nameTok = tokens.join(' ');
+        parts = [nameTok, phoneTok, amtTok];
+      } else {
+        parts = tokens;
+      }
+    }
     if(parts.length < 3){
-      msgEl.innerHTML = `<div class="msg error">Bad line: "${line}". Use Name, Phone, Amount.</div>`;
+      msgEl.innerHTML = `<div class="msg error">Bad line: "${line}". Use Name, Phone, Amount (comma or space separated).</div>`;
       return;
     }
     const [name, phone, amtStr] = parts;
