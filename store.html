@@ -81,6 +81,14 @@
     <input type="password" id="authPassword" placeholder="••••••••">
     <button onclick="handleAuth()">Login</button>
     <div id="authMsg"></div>
+    <button class="secondary" onclick="forgotPassword()" id="forgotBtn">Forgot password?</button>
+  </div>
+
+  <!-- PENDING OWNER APPROVAL -->
+  <div id="storePendingBox" class="box hidden">
+    <h2>Pending Approval</h2>
+    <p class="hint">Your store has been registered. The app owner will review and approve your account shortly — you'll get an email once it's live. Refresh this page after approval.</p>
+    <button class="secondary" onclick="location.reload()">Refresh</button>
   </div>
 
   <!-- CREATE STORE -->
@@ -162,6 +170,22 @@ async function handleAuth(){
   await loadStoreState();
 }
 
+async function forgotPassword(){
+  const email = document.getElementById('authEmail').value.trim();
+  const msgEl = document.getElementById('authMsg');
+  if(!email){
+    msgEl.innerHTML = '<div class="msg error">Enter your email above first, then tap "Forgot password?".</div>';
+    return;
+  }
+  const redirectTo = location.origin + location.pathname.replace('store.html', 'reset-password.html');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+  if(error){
+    msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+    return;
+  }
+  msgEl.innerHTML = '<div class="msg success">Password reset link sent. Check your email.</div>';
+}
+
 async function checkExistingSession(){
   const { data } = await sb.auth.getSession();
   if(data.session){
@@ -185,6 +209,12 @@ async function loadStoreState(){
   }
 
   currentStore = store;
+
+  if(!store.approved){
+    document.getElementById('storePendingBox').classList.remove('hidden');
+    return;
+  }
+
   document.getElementById('dashboard').classList.remove('hidden');
   await loadPending();
   await loadAllCompanies();
@@ -213,9 +243,7 @@ async function createStore(){
 
   currentStore = data;
   document.getElementById('createStoreBox').classList.add('hidden');
-  document.getElementById('dashboard').classList.remove('hidden');
-  await loadPending();
-  await loadAllCompanies();
+  document.getElementById('storePendingBox').classList.remove('hidden');
 }
 
 function showTab(name){
@@ -349,33 +377,35 @@ async function onScanSuccess(decodedText){
   `;
 }
 
-function verifyPhone(){
+async function verifyPhone(){
   const entered = document.getElementById('phoneCheck').value.trim();
   const msgEl = document.getElementById('verifyMsg');
 
-  if(entered !== activeCoupon.employee_phone){
-    msgEl.innerHTML = '<div class="msg error">Phone number does not match our records.</div>';
-    return;
-  }
-
-  generateAndShowCode();
-}
-
-async function generateAndShowCode(){
-  const code = String(Math.floor(1000 + Math.random() * 9000));
-
-  const { error } = await sb.from('gc_coupons')
-    .update({ redeem_code: code, attempt_count: 0 })
-    .eq('coupon_id', activeCoupon.coupon_id);
+  const { data: result, error } = await sb.rpc('gc_store_request_redeem_code', {
+    p_coupon_id: activeCoupon.coupon_id,
+    p_phone: entered
+  });
 
   if(error){
-    document.getElementById('verifyMsg').innerHTML = `<div class="msg error">${error.message}</div>`;
+    msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
     return;
   }
 
-  activeCoupon.redeem_code = code;
-  activeCoupon.attempt_count = 0;
+  if(!result.ok){
+    const reasons = {
+      phone_mismatch: 'Phone number does not match our records.',
+      already_redeemed: 'This coupon has already been redeemed.',
+      not_found: 'Coupon not found for this store.'
+    };
+    msgEl.innerHTML = `<div class="msg error">${reasons[result.reason] || result.reason}</div>`;
+    return;
+  }
 
+  activeCoupon.redeem_code = result.code;
+  showCodeStep(result.code);
+}
+
+function showCodeStep(code){
   const smsBody = encodeURIComponent(`Your gift coupon redemption code is ${code}`);
 
   document.getElementById('verifyMsg').innerHTML = `
@@ -393,41 +423,37 @@ async function verifyCode(){
   const entered = document.getElementById('codeCheck').value.trim();
   const attemptsEl = document.getElementById('attemptsMsg');
 
-  if(entered === activeCoupon.redeem_code){
-    const { error } = await sb.from('gc_coupons')
-      .update({ status: 'redeemed', redeemed_at: new Date().toISOString() })
-      .eq('coupon_id', activeCoupon.coupon_id);
+  const { data: result, error } = await sb.rpc('gc_store_verify_redeem_code', {
+    p_coupon_id: activeCoupon.coupon_id,
+    p_code: entered
+  });
 
-    if(error){
-      attemptsEl.innerHTML = `<div class="msg error">${error.message}</div>`;
-      return;
-    }
+  if(error){
+    attemptsEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+    return;
+  }
 
+  if(result.ok && result.redeemed){
     document.getElementById('scanResult').innerHTML = `
       <div class="coupon-card">
-        <div class="msg success">✅ ₹${Number(activeCoupon.amount).toLocaleString('en-IN')} Redeemed Successfully</div>
+        <div class="msg success">✅ ₹${Number(result.amount).toLocaleString('en-IN')} Redeemed Successfully</div>
       </div>`;
     return;
   }
 
-  const newAttempts = activeCoupon.attempt_count + 1;
-
-  if(newAttempts >= 3){
-    const newCode = String(Math.floor(1000 + Math.random() * 9000));
-    await sb.from('gc_coupons')
-      .update({ redeem_code: newCode, attempt_count: 0 })
-      .eq('coupon_id', activeCoupon.coupon_id);
-    activeCoupon.redeem_code = newCode;
-    activeCoupon.attempt_count = 0;
-    const smsBody = encodeURIComponent(`Your gift coupon redemption code is ${newCode}`);
-    attemptsEl.innerHTML = `<div class="msg error">3 wrong attempts. New code generated: <b>${newCode}</b></div>
+  if(result.reason === 'locked_new_code'){
+    const smsBody = encodeURIComponent(`Your gift coupon redemption code is ${result.code}`);
+    attemptsEl.innerHTML = `<div class="msg error">3 wrong attempts. New code generated: <b>${result.code}</b></div>
       <a class="sms-link" href="sms:${activeCoupon.employee_phone}?body=${smsBody}">📱 Send New Code</a>`;
     return;
   }
 
-  activeCoupon.attempt_count = newAttempts;
-  await sb.from('gc_coupons').update({ attempt_count: newAttempts }).eq('coupon_id', activeCoupon.coupon_id);
-  attemptsEl.innerHTML = `<div class="msg error">Wrong code. ${3 - newAttempts} attempt(s) left.</div>`;
+  if(result.reason === 'already_redeemed'){
+    attemptsEl.innerHTML = '<div class="msg error">This coupon has already been redeemed.</div>';
+    return;
+  }
+
+  attemptsEl.innerHTML = `<div class="msg error">Wrong code. ${result.attempts_left} attempt(s) left.</div>`;
 }
 
 checkExistingSession();

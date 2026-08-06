@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner Admin | Gift Coupon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --navy:#0F2A3D; --navy-light:#173B54; --gold:#D4A24C;
+    --cream:#FAF8F4; --text:#3A4552; --muted:#8A95A1;
+    --green:#2F8F5B; --red:#C24545;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--text);min-height:100vh;}
+  header{
+    background:var(--navy);color:#fff;padding:18px 20px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  header h1{font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;}
+  header a{color:var(--gold);text-decoration:none;font-size:13px;}
+  main{max-width:640px;margin:0 auto;padding:24px 16px 60px;}
+  .box{background:#fff;border:1px solid #EAE4D8;border-radius:14px;padding:22px;margin-bottom:18px;}
+  .box h2{font-family:'Poppins',sans-serif;font-size:16px;color:var(--navy);margin-bottom:14px;}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;margin-top:12px;}
+  label:first-of-type{margin-top:0;}
+  input{
+    width:100%;padding:11px 12px;border:1px solid #DDD5C4;border-radius:9px;
+    font-size:14px;font-family:'Inter',sans-serif;background:#fff;
+  }
+  button{
+    margin-top:16px;width:100%;padding:12px;border:none;border-radius:9px;
+    background:var(--navy);color:#fff;font-size:14px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  button:hover{background:var(--navy-light);}
+  button.gold{background:var(--gold);color:var(--navy);}
+  .msg{font-size:13px;margin-top:10px;padding:10px 12px;border-radius:8px;}
+  .msg.error{background:#FBEAEA;color:var(--red);}
+  .msg.success{background:#E9F5EE;color:var(--green);}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  .hidden{display:none;}
+  .coupon-card{background:#FBF8F1;border:1px dashed var(--gold);border-radius:12px;padding:18px;margin-top:14px;}
+  .coupon-card .row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;}
+  .coupon-card .row span:first-child{color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔐 Owner Admin</h1>
+  <a href="index.html">← Home</a>
+</header>
+
+<main>
+
+  <!-- LOGIN -->
+  <div id="loginBox" class="box">
+    <h2>Admin Login</h2>
+    <label>Password</label>
+    <input type="password" id="adminPassword" placeholder="••••••••">
+    <button onclick="login()">Login</button>
+    <div id="loginMsg"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden">
+    <div class="box">
+      <h2>Pending Store Approvals</h2>
+      <div id="pendingList"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let adminToken = localStorage.getItem('gc_admin_token');
+
+async function login(){
+  const password = document.getElementById('adminPassword').value;
+  const msgEl = document.getElementById('loginMsg');
+
+  if(!password){
+    msgEl.innerHTML = '<div class="msg error">Enter the admin password.</div>';
+    return;
+  }
+
+  const { data: result, error } = await sb.rpc('gc_admin_login', { p_password: password });
+
+  if(error || !result.ok){
+    msgEl.innerHTML = `<div class="msg error">${result ? result.error : error.message}</div>`;
+    return;
+  }
+
+  adminToken = result.token;
+  localStorage.setItem('gc_admin_token', adminToken);
+  showDashboard();
+}
+
+async function showDashboard(){
+  document.getElementById('loginBox').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  await loadPendingStores();
+}
+
+async function loadPendingStores(){
+  const { data: stores, error } = await sb.rpc('gc_admin_list_pending_stores', { p_token: adminToken });
+  const list = document.getElementById('pendingList');
+
+  if(error){
+    localStorage.removeItem('gc_admin_token');
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('loginBox').classList.remove('hidden');
+    document.getElementById('loginMsg').innerHTML = '<div class="msg error">Session expired. Log in again.</div>';
+    return;
+  }
+
+  if(!stores || stores.length === 0){
+    list.innerHTML = '<p class="hint">No pending store approvals.</p>';
+    return;
+  }
+
+  list.innerHTML = stores.map(s => `
+    <div class="coupon-card">
+      <div class="row"><span>Store</span><span><b>${s.store_name}</b></span></div>
+      <div class="row"><span>Address</span><span>${s.store_address || '-'}</span></div>
+      <div class="row"><span>Owner</span><span>${s.owner_email}</span></div>
+      <button class="gold" onclick="approveStore('${s.store_id}')">Approve Store</button>
+      <div id="approveMsg-${s.store_id}"></div>
+    </div>
+  `).join('');
+}
+
+async function approveStore(storeId){
+  const msgEl = document.getElementById(`approveMsg-${storeId}`);
+  const { data: result, error } = await sb.rpc('gc_admin_approve_store', {
+    p_token: adminToken, p_store_id: storeId
+  });
+
+  if(error || !result.ok){
+    msgEl.innerHTML = `<div class="msg error">${result ? result.error : error.message}</div>`;
+    return;
+  }
+
+  await loadPendingStores();
+}
+
+if(adminToken){
+  showDashboard();
+}
+</script>
+
+</body>
+</html>

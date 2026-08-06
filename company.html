@@ -81,6 +81,9 @@
       <span id="toggleText">New company?</span>
       <button onclick="toggleMode()" id="toggleBtn">Create an account</button>
     </div>
+    <div class="toggle-row">
+      <button onclick="forgotPassword()" id="forgotBtn">Forgot password?</button>
+    </div>
   </div>
 
   <!-- REGISTER COMPANY (after login, no company row yet) -->
@@ -176,6 +179,22 @@ async function handleAuth(){
   }
   currentUser = result.data.user;
   await loadCompanyState();
+}
+
+async function forgotPassword(){
+  const email = document.getElementById('authEmail').value.trim();
+  const msgEl = document.getElementById('authMsg');
+  if(!email){
+    msgEl.innerHTML = '<div class="msg error">Enter your email above first, then tap "Forgot password?".</div>';
+    return;
+  }
+  const redirectTo = location.origin + location.pathname.replace('company.html', 'reset-password.html');
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+  if(error){
+    msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+    return;
+  }
+  msgEl.innerHTML = '<div class="msg success">Password reset link sent. Check your email.</div>';
 }
 
 async function checkExistingSession(){
@@ -294,31 +313,27 @@ async function generateCoupons(){
     });
   }
 
-  if(total > currentCompany.balance){
-    msgEl.innerHTML = `<div class="msg error">Total ₹${total} exceeds your balance of ₹${currentCompany.balance}.</div>`;
+  const rpcRows = rows.map(r => ({ name: r.employee_name, phone: r.employee_phone, amount: r.amount }));
+
+  const { data: result, error: genErr } = await sb.rpc('gc_generate_coupons', {
+    p_company_id: currentCompany.company_id,
+    p_rows: rpcRows
+  });
+
+  if(genErr){
+    msgEl.innerHTML = `<div class="msg error">${genErr.message}</div>`;
     return;
   }
 
-  const { error: insertErr } = await sb.from('gc_coupons').insert(rows);
-  if(insertErr){
-    msgEl.innerHTML = `<div class="msg error">${insertErr.message}</div>`;
+  if(!result.ok){
+    msgEl.innerHTML = `<div class="msg error">${result.error}</div>`;
     return;
   }
 
-  const newBalance = currentCompany.balance - total;
-  const { error: balErr } = await sb.from('gc_companies')
-    .update({ balance: newBalance })
-    .eq('company_id', currentCompany.company_id);
-
-  if(balErr){
-    msgEl.innerHTML = `<div class="msg error">Coupons made, but balance update failed: ${balErr.message}</div>`;
-    return;
-  }
-
-  currentCompany.balance = newBalance;
-  document.getElementById('balanceAmt').innerText = '₹' + Number(newBalance).toLocaleString('en-IN');
+  currentCompany.balance = currentCompany.balance - result.total;
+  document.getElementById('balanceAmt').innerText = '₹' + Number(currentCompany.balance).toLocaleString('en-IN');
   document.getElementById('bulkInput').value = '';
-  msgEl.innerHTML = `<div class="msg success">${rows.length} coupon(s) generated successfully.</div>`;
+  msgEl.innerHTML = `<div class="msg success">${result.count} coupon(s) generated successfully.</div>`;
   await loadCoupons();
 }
 
