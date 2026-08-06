@@ -107,6 +107,8 @@
     <input type="text" id="storeName" placeholder="e.g. Baroda Gift Gallery">
     <label>Store Address</label>
     <input type="text" id="storeAddress" placeholder="Shop address">
+    <label>Contact Phone</label>
+    <input type="tel" id="storePhone" placeholder="98xxxxxxxx">
     <label>Store Logo URL <span class="hint">(optional, paste image link)</span></label>
     <input type="text" id="storeLogo" placeholder="https://...">
     <button onclick="createStore()">Create Store</button>
@@ -245,16 +247,17 @@ async function loadStoreState(){
 async function createStore(){
   const store_name = document.getElementById('storeName').value.trim();
   const store_address = document.getElementById('storeAddress').value.trim();
+  const contact_phone = document.getElementById('storePhone').value.trim();
   const store_logo_url = document.getElementById('storeLogo').value.trim();
   const msgEl = document.getElementById('createMsg');
 
-  if(!store_name || !store_address){
-    msgEl.innerHTML = '<div class="msg error">Store name and address required.</div>';
+  if(!store_name || !store_address || !contact_phone){
+    msgEl.innerHTML = '<div class="msg error">Store name, address, and contact phone are required.</div>';
     return;
   }
 
   const { data, error } = await sb.from('gc_stores').insert({
-    store_name, store_address, store_logo_url: store_logo_url || null,
+    store_name, store_address, contact_phone, store_logo_url: store_logo_url || null,
     owner_user_id: currentUser.id
   }).select().single();
 

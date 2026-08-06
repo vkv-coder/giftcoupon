@@ -45,6 +45,11 @@
   .coupon-card{background:#FBF8F1;border:1px dashed var(--gold);border-radius:12px;padding:18px;margin-top:14px;}
   .coupon-card .row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;}
   .coupon-card .row span:first-child{color:var(--muted);}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;}
+  th,td{text-align:left;padding:9px 6px;border-bottom:1px solid #EFE9DC;white-space:nowrap;}
+  th{color:var(--muted);font-weight:600;font-size:12px;}
+  .table-wrap{overflow-x:auto;}
+  .table-wrap table{min-width:520px;}
 </style>
 </head>
 <body>
@@ -70,6 +75,18 @@
     <div class="box">
       <h2>Pending Store Approvals</h2>
       <div id="pendingList"></div>
+    </div>
+
+    <div class="box">
+      <h2>Approved Stores</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Store</th><th>Address</th><th>Contact Phone</th><th>Owner Email</th></tr>
+          </thead>
+          <tbody id="approvedRows"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -107,6 +124,7 @@ async function showDashboard(){
   document.getElementById('loginBox').classList.add('hidden');
   document.getElementById('dashboard').classList.remove('hidden');
   await loadPendingStores();
+  await loadApprovedStores();
 }
 
 async function loadPendingStores(){
@@ -130,11 +148,31 @@ async function loadPendingStores(){
     <div class="coupon-card">
       <div class="row"><span>Store</span><span><b>${s.store_name}</b></span></div>
       <div class="row"><span>Address</span><span>${s.store_address || '-'}</span></div>
+      <div class="row"><span>Contact Phone</span><span>${s.contact_phone || '-'}</span></div>
       <div class="row"><span>Owner</span><span>${s.owner_email}</span></div>
       <button class="gold" onclick="approveStore('${s.store_id}')">Approve Store</button>
       <div id="approveMsg-${s.store_id}"></div>
     </div>
   `).join('');
+}
+
+async function loadApprovedStores(){
+  const { data: stores, error } = await sb.rpc('gc_admin_list_approved_stores', { p_token: adminToken });
+  const rows = document.getElementById('approvedRows');
+
+  if(error){
+    rows.innerHTML = `<tr><td colspan="4" class="hint">Could not load approved stores.</td></tr>`;
+    return;
+  }
+
+  rows.innerHTML = (stores || []).map(s => `
+    <tr>
+      <td><b>${s.store_name}</b></td>
+      <td>${s.store_address || '-'}</td>
+      <td>${s.contact_phone || '-'}</td>
+      <td>${s.owner_email}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" class="hint">No approved stores yet.</td></tr>';
 }
 
 async function approveStore(storeId){
@@ -149,6 +187,7 @@ async function approveStore(storeId){
   }
 
   await loadPendingStores();
+  await loadApprovedStores();
 }
 
 if(adminToken){
