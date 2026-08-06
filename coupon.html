@@ -24,11 +24,12 @@
     box-shadow:0 8px 30px rgba(15,42,61,0.12);overflow:hidden;position:relative;
   }
   .store-strip{
-    background:var(--navy);color:#fff;padding:20px;text-align:center;
+    background:var(--navy);color:#fff;padding:36px 24px;text-align:center;
   }
-  .store-strip img{width:44px;height:44px;border-radius:10px;object-fit:cover;margin-bottom:8px;background:#fff;}
-  .store-strip h2{font-family:'Poppins',sans-serif;font-size:16px;font-weight:700;}
-  .store-strip p{font-size:12px;color:#B9C4CE;margin-top:2px;}
+  .store-strip img{width:72px;height:72px;border-radius:14px;object-fit:cover;margin-bottom:14px;background:#fff;}
+  .store-strip h2{font-family:'Poppins',sans-serif;font-size:20px;font-weight:700;}
+  .store-strip p{font-size:12px;color:#B9C4CE;margin-top:4px;}
+  .store-strip .store-address{font-size:12px;color:#B9C4CE;margin-top:10px;line-height:1.5;}
   .perforation{
     height:0;border-top:2px dashed #DDD5C4;position:relative;margin:0 20px;
   }
@@ -52,7 +53,6 @@
   }
   .status-issued{background:#E9F5EE;color:var(--green);}
   .status-redeemed{background:#FBEAEA;color:var(--red);}
-  .store-address{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.5;}
   .instructions{font-size:12px;color:var(--muted);margin-top:14px;padding:0 10px;}
   .redeemed-overlay{
     position:absolute;inset:0;background:rgba(255,255,255,0.85);
@@ -109,6 +109,7 @@ async function loadCoupon(){
         ${coupon.store_logo_url ? `<img src="${coupon.store_logo_url}" alt="">` : ''}
         <h2>${coupon.store_name}</h2>
         <p>Valid at this store only</p>
+        ${coupon.store_address ? `<div class="store-address">${coupon.store_address}</div>` : ''}
       </div>
       <div class="perforation"></div>
       <div class="body-section">
@@ -121,7 +122,6 @@ async function loadCoupon(){
         </span>
         <div class="qr-wrap"><canvas id="qrCanvas"></canvas></div>
         <div class="instructions">Show this QR code to the store cashier to redeem your gift coupon.</div>
-        <div class="store-address">${coupon.store_address || ''}</div>
       </div>
     </div>
     <footer><a href="index.html">Powered by AnyApps.in</a></footer>
