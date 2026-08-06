@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --navy:#0F2A3D; --navy-light:#173B54; --gold:#D4A24C;
@@ -53,6 +54,11 @@
   .status-issued{background:#FFF6E5;color:#96721F;}
   .status-redeemed{background:#E9F5EE;color:var(--green);}
   .copy-btn{background:none;border:1px solid #DDD5C4;color:var(--navy);font-size:11px;padding:4px 8px;border-radius:6px;width:auto;margin:0;cursor:pointer;}
+  .wa-btn{background:#25D366;color:#fff;font-size:11px;padding:4px 8px;border-radius:6px;width:auto;margin:0 0 0 6px;cursor:pointer;text-decoration:none;display:inline-block;border:none;}
+  .row-actions{display:flex;flex-wrap:wrap;gap:6px;}
+  .box-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .box-header h2{margin-bottom:0;}
+  .export-btn{background:var(--gold);color:var(--navy);font-size:12px;padding:7px 12px;border-radius:8px;width:auto;margin:0;cursor:pointer;text-decoration:none;display:inline-block;border:none;font-weight:600;}
   .hint{font-size:12px;color:var(--muted);margin-top:6px;}
   .hidden{display:none;}
   .toggle-row{text-align:center;margin-top:14px;font-size:13px;color:var(--muted);}
@@ -126,7 +132,10 @@ Sneha Shah, 9898123456, 1000"></textarea>
     </div>
 
     <div class="box">
-      <h2>Issued Coupons</h2>
+      <div class="box-header">
+        <h2>Issued Coupons</h2>
+        <button class="export-btn" onclick="exportAllExcel()">⬇ Download All (Excel)</button>
+      </div>
       <table>
         <thead><tr><th>Employee</th><th>Amount</th><th>Status</th><th></th></tr></thead>
         <tbody id="couponRows"></tbody>
@@ -145,6 +154,42 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let currentCompany = null;
 let isSignup = false;
+let lastLoadedCoupons = [];
+let lastBatchCoupons = [];
+
+function couponLink(token){
+  return `${location.origin}${location.pathname.replace('company.html','')}coupon.html?token=${token}`;
+}
+
+function waLink(c){
+  const companyName = currentCompany ? currentCompany.company_name : '';
+  const msg = `Hi ${c.employee_name}, please accept a small appreciation from us with best wishes. (${companyName})\n\n${couponLink(c.qr_token)}`;
+  const phone = '91' + String(c.employee_phone).replace(/\D/g, '').slice(-10);
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+}
+
+function exportExcel(coupons, filename){
+  const rows = coupons.map(c => ({
+    'Employee Name': c.employee_name,
+    'Phone': c.employee_phone,
+    'Amount': c.amount,
+    'Status': c.status || 'issued',
+    'Coupon Link': couponLink(c.qr_token)
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Coupons');
+  XLSX.writeFile(wb, filename);
+}
+
+function exportAllExcel(){
+  if(!lastLoadedCoupons.length){
+    alert('No coupons to export yet.');
+    return;
+  }
+  const name = (currentCompany.company_name || 'coupons').replace(/[^a-z0-9]+/gi, '-');
+  exportExcel(lastLoadedCoupons, `gift-coupons-${name}-${Date.now()}.xlsx`);
+}
 
 function toggleMode(){
   isSignup = !isSignup;
@@ -333,8 +378,17 @@ async function generateCoupons(){
   currentCompany.balance = currentCompany.balance - result.total;
   document.getElementById('balanceAmt').innerText = '₹' + Number(currentCompany.balance).toLocaleString('en-IN');
   document.getElementById('bulkInput').value = '';
-  msgEl.innerHTML = `<div class="msg success">${result.count} coupon(s) generated successfully.</div>`;
+
+  lastBatchCoupons = result.coupons || [];
+  msgEl.innerHTML = `
+    <div class="msg success">${result.count} coupon(s) generated successfully.</div>
+    <button class="export-btn" style="margin-top:8px;" onclick="exportBatchExcel()">⬇ Download this batch (Excel)</button>
+  `;
   await loadCoupons();
+}
+
+function exportBatchExcel(){
+  exportExcel(lastBatchCoupons, `gift-coupons-batch-${Date.now()}.xlsx`);
 }
 
 async function loadCoupons(){
@@ -344,15 +398,22 @@ async function loadCoupons(){
     .eq('company_id', currentCompany.company_id)
     .order('created_at', { ascending: false });
 
+  lastLoadedCoupons = coupons || [];
+
   const tbody = document.getElementById('couponRows');
-  tbody.innerHTML = (coupons || []).map(c => {
-    const link = `${location.origin}${location.pathname.replace('company.html','')}coupon.html?token=${c.qr_token}`;
+  tbody.innerHTML = lastLoadedCoupons.map(c => {
+    const link = couponLink(c.qr_token);
     const badgeClass = c.status === 'redeemed' ? 'status-redeemed' : 'status-issued';
     return `<tr>
       <td>${c.employee_name}<br><span class="hint">${c.employee_phone}</span></td>
       <td>₹${Number(c.amount).toLocaleString('en-IN')}</td>
       <td><span class="status-badge ${badgeClass}">${c.status}</span></td>
-      <td><button class="copy-btn" onclick="copyLink('${link}', this)">Copy Link</button></td>
+      <td>
+        <div class="row-actions">
+          <button class="copy-btn" onclick="copyLink('${link}', this)">Copy Link</button>
+          <a class="wa-btn" href="${waLink(c)}" target="_blank">📱 Send</a>
+        </div>
+      </td>
     </tr>`;
   }).join('') || '<tr><td colspan="4" class="hint">No coupons yet.</td></tr>';
 }
