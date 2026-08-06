@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Store Portal | Gift Coupon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --navy:#0F2A3D; --navy-light:#173B54; --gold:#D4A24C;
+    --cream:#FAF8F4; --text:#3A4552; --muted:#8A95A1;
+    --green:#2F8F5B; --red:#C24545;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--text);min-height:100vh;}
+  header{
+    background:var(--navy);color:#fff;padding:18px 20px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  header h1{font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;}
+  header a{color:var(--gold);text-decoration:none;font-size:13px;}
+  main{max-width:640px;margin:0 auto;padding:24px 16px 60px;}
+  .box{background:#fff;border:1px solid #EAE4D8;border-radius:14px;padding:22px;margin-bottom:18px;}
+  .box h2{font-family:'Poppins',sans-serif;font-size:16px;color:var(--navy);margin-bottom:14px;}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;margin-top:12px;}
+  label:first-of-type{margin-top:0;}
+  input,select{
+    width:100%;padding:11px 12px;border:1px solid #DDD5C4;border-radius:9px;
+    font-size:14px;font-family:'Inter',sans-serif;background:#fff;
+  }
+  button{
+    margin-top:16px;width:100%;padding:12px;border:none;border-radius:9px;
+    background:var(--navy);color:#fff;font-size:14px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  button:hover{background:var(--navy-light);}
+  button.secondary{background:transparent;color:var(--navy);border:1px solid var(--navy);}
+  button.gold{background:var(--gold);color:var(--navy);}
+  .msg{font-size:13px;margin-top:10px;padding:10px 12px;border-radius:8px;}
+  .msg.error{background:#FBEAEA;color:var(--red);}
+  .msg.success{background:#E9F5EE;color:var(--green);}
+  .msg.pending{background:#FFF6E5;color:#96721F;}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;}
+  .tab{flex:1;padding:10px;text-align:center;border-radius:9px;background:#fff;border:1px solid #EAE4D8;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;}
+  .tab.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;}
+  th,td{text-align:left;padding:9px 6px;border-bottom:1px solid #EFE9DC;}
+  th{color:var(--muted);font-weight:600;font-size:12px;}
+  .hidden{display:none;}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  #qrReader{width:100%;border-radius:12px;overflow:hidden;margin-top:10px;}
+  .coupon-card{background:#FBF8F1;border:1px dashed var(--gold);border-radius:12px;padding:18px;margin-top:14px;}
+  .coupon-card .row{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;}
+  .coupon-card .row span:first-child{color:var(--muted);}
+  .code-display{
+    font-family:'Poppins',sans-serif;font-size:34px;font-weight:800;color:var(--navy);
+    text-align:center;letter-spacing:8px;margin:14px 0;
+  }
+  .sms-link{display:block;text-align:center;background:var(--green);color:#fff;text-decoration:none;padding:10px;border-radius:9px;font-size:13px;font-weight:600;margin-top:8px;}
+  .attempts{text-align:center;font-size:12px;color:var(--muted);margin-top:6px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏬 Store Portal</h1>
+  <a href="index.html">← Home</a>
+</header>
+
+<main>
+
+  <!-- LOGIN -->
+  <div id="authBox" class="box">
+    <h2>Store Login</h2>
+    <label>Email</label>
+    <input type="email" id="authEmail" placeholder="you@store.com">
+    <label>Password</label>
+    <input type="password" id="authPassword" placeholder="••••••••">
+    <button onclick="handleAuth()">Login</button>
+    <div id="authMsg"></div>
+  </div>
+
+  <!-- CREATE STORE -->
+  <div id="createStoreBox" class="box hidden">
+    <h2>Set Up Your Store</h2>
+    <label>Store Name</label>
+    <input type="text" id="storeName" placeholder="e.g. Baroda Gift Gallery">
+    <label>Store Address</label>
+    <input type="text" id="storeAddress" placeholder="Shop address">
+    <label>Store Logo URL <span class="hint">(optional, paste image link)</span></label>
+    <input type="text" id="storeLogo" placeholder="https://...">
+    <button onclick="createStore()">Create Store</button>
+    <div id="createMsg"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden">
+    <div class="tabs">
+      <div class="tab active" id="tabPending" onclick="showTab('pending')">Approvals</div>
+      <div class="tab" id="tabScan" onclick="showTab('scan')">Scan & Redeem</div>
+      <div class="tab" id="tabAll" onclick="showTab('all')">Companies</div>
+    </div>
+
+    <!-- PENDING APPROVALS -->
+    <div id="panelPending" class="box">
+      <h2>Pending Company Requests</h2>
+      <div id="pendingList"></div>
+    </div>
+
+    <!-- SCAN & REDEEM -->
+    <div id="panelScan" class="box hidden">
+      <h2>Scan Coupon QR</h2>
+      <div id="qrReader"></div>
+      <button class="secondary" id="startScanBtn" onclick="startScanner()">Start Camera</button>
+      <div id="scanResult"></div>
+    </div>
+
+    <!-- ALL COMPANIES -->
+    <div id="panelAll" class="box hidden">
+      <h2>All Companies</h2>
+      <table>
+        <thead><tr><th>Company</th><th>Balance</th><th>Status</th></tr></thead>
+        <tbody id="allCompaniesRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let currentStore = null;
+let html5QrCode = null;
+let activeCoupon = null;
+
+async function handleAuth(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const msgEl = document.getElementById('authMsg');
+  msgEl.innerHTML = '';
+
+  let result = await sb.auth.signInWithPassword({ email, password });
+  if(result.error && result.error.message.includes('Invalid login')){
+    result = await sb.auth.signUp({ email, password });
+    if(!result.error && !result.data.session){
+      msgEl.innerHTML = '<div class="msg pending">Check your email to confirm, then login again.</div>';
+      return;
+    }
+  }
+  if(result.error){
+    msgEl.innerHTML = `<div class="msg error">${result.error.message}</div>`;
+    return;
+  }
+  currentUser = result.data.user;
+  await loadStoreState();
+}
+
+async function checkExistingSession(){
+  const { data } = await sb.auth.getSession();
+  if(data.session){
+    currentUser = data.session.user;
+    await loadStoreState();
+  }
+}
+
+async function loadStoreState(){
+  document.getElementById('authBox').classList.add('hidden');
+
+  const { data: store } = await sb
+    .from('gc_stores')
+    .select('*')
+    .eq('owner_user_id', currentUser.id)
+    .maybeSingle();
+
+  if(!store){
+    document.getElementById('createStoreBox').classList.remove('hidden');
+    return;
+  }
+
+  currentStore = store;
+  document.getElementById('dashboard').classList.remove('hidden');
+  await loadPending();
+  await loadAllCompanies();
+}
+
+async function createStore(){
+  const store_name = document.getElementById('storeName').value.trim();
+  const store_address = document.getElementById('storeAddress').value.trim();
+  const store_logo_url = document.getElementById('storeLogo').value.trim();
+  const msgEl = document.getElementById('createMsg');
+
+  if(!store_name || !store_address){
+    msgEl.innerHTML = '<div class="msg error">Store name and address required.</div>';
+    return;
+  }
+
+  const { data, error } = await sb.from('gc_stores').insert({
+    store_name, store_address, store_logo_url: store_logo_url || null,
+    owner_user_id: currentUser.id
+  }).select().single();
+
+  if(error){
+    msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+    return;
+  }
+
+  currentStore = data;
+  document.getElementById('createStoreBox').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  await loadPending();
+  await loadAllCompanies();
+}
+
+function showTab(name){
+  ['pending','scan','all'].forEach(t => {
+    document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === name);
+    document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('hidden', t !== name);
+  });
+}
+
+async function loadPending(){
+  const { data: companies } = await sb
+    .from('gc_companies')
+    .select('*')
+    .eq('store_id', currentStore.store_id)
+    .eq('approved', false);
+
+  const list = document.getElementById('pendingList');
+  if(!companies || companies.length === 0){
+    list.innerHTML = '<p class="hint">No pending requests.</p>';
+    return;
+  }
+
+  list.innerHTML = companies.map(c => `
+    <div class="coupon-card">
+      <div class="row"><span>Company</span><span><b>${c.company_name}</b></span></div>
+      <div class="row"><span>Contact</span><span>${c.contact_person} (${c.contact_phone})</span></div>
+      <label>Balance to set (₹ paid by company)</label>
+      <input type="number" id="bal-${c.company_id}" placeholder="e.g. 10000">
+      <button class="gold" onclick="approveCompany('${c.company_id}')">Approve & Set Balance</button>
+      <div id="approveMsg-${c.company_id}"></div>
+    </div>
+  `).join('');
+}
+
+async function approveCompany(companyId){
+  const balInput = document.getElementById(`bal-${companyId}`);
+  const balance = parseFloat(balInput.value);
+  const msgEl = document.getElementById(`approveMsg-${companyId}`);
+
+  if(isNaN(balance) || balance <= 0){
+    msgEl.innerHTML = '<div class="msg error">Enter a valid amount.</div>';
+    return;
+  }
+
+  const { error } = await sb.from('gc_companies')
+    .update({ approved: true, balance })
+    .eq('company_id', companyId);
+
+  if(error){
+    msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+    return;
+  }
+
+  msgEl.innerHTML = '<div class="msg success">Approved!</div>';
+  await loadPending();
+  await loadAllCompanies();
+}
+
+async function loadAllCompanies(){
+  const { data: companies } = await sb
+    .from('gc_companies')
+    .select('*')
+    .eq('store_id', currentStore.store_id)
+    .order('created_at', { ascending: false });
+
+  const tbody = document.getElementById('allCompaniesRows');
+  tbody.innerHTML = (companies || []).map(c => `
+    <tr>
+      <td>${c.company_name}</td>
+      <td>₹${Number(c.balance).toLocaleString('en-IN')}</td>
+      <td>${c.approved ? '<span style="color:#2F8F5B">Approved</span>' : '<span style="color:#96721F">Pending</span>'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="3" class="hint">No companies yet.</td></tr>';
+}
+
+function startScanner(){
+  document.getElementById('startScanBtn').classList.add('hidden');
+  document.getElementById('scanResult').innerHTML = '';
+  html5QrCode = new Html5Qrcode("qrReader");
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 240 },
+    onScanSuccess,
+    () => {}
+  );
+}
+
+async function onScanSuccess(decodedText){
+  html5QrCode.stop();
+  document.getElementById('qrReader').innerHTML = '';
+  document.getElementById('startScanBtn').classList.remove('hidden');
+
+  const { data: coupon, error } = await sb
+    .from('gc_coupons')
+    .select('*')
+    .eq('qr_token', decodedText)
+    .eq('store_id', currentStore.store_id)
+    .maybeSingle();
+
+  const resultEl = document.getElementById('scanResult');
+
+  if(error || !coupon){
+    resultEl.innerHTML = '<div class="msg error">Coupon not found or not valid for this store.</div>';
+    return;
+  }
+
+  activeCoupon = coupon;
+
+  if(coupon.status === 'redeemed'){
+    resultEl.innerHTML = `
+      <div class="coupon-card">
+        <div class="row"><span>Employee</span><span><b>${coupon.employee_name}</b></span></div>
+        <div class="row"><span>Amount</span><span>₹${Number(coupon.amount).toLocaleString('en-IN')}</span></div>
+        <div class="msg error">Already redeemed on ${new Date(coupon.redeemed_at).toLocaleString('en-IN')}</div>
+      </div>`;
+    return;
+  }
+
+  const masked = coupon.employee_phone.slice(0,2) + 'xxxxxx' + coupon.employee_phone.slice(-2);
+
+  resultEl.innerHTML = `
+    <div class="coupon-card">
+      <div class="row"><span>Employee</span><span><b>${coupon.employee_name}</b></span></div>
+      <div class="row"><span>Registered No.</span><span>${masked}</span></div>
+      <div class="row"><span>Amount</span><span>₹${Number(coupon.amount).toLocaleString('en-IN')}</span></div>
+      <label>Ask customer's phone number & enter here</label>
+      <input type="tel" id="phoneCheck" placeholder="Enter phone number">
+      <button onclick="verifyPhone()">Verify & Generate Code</button>
+      <div id="verifyMsg"></div>
+    </div>
+  `;
+}
+
+function verifyPhone(){
+  const entered = document.getElementById('phoneCheck').value.trim();
+  const msgEl = document.getElementById('verifyMsg');
+
+  if(entered !== activeCoupon.employee_phone){
+    msgEl.innerHTML = '<div class="msg error">Phone number does not match our records.</div>';
+    return;
+  }
+
+  generateAndShowCode();
+}
+
+async function generateAndShowCode(){
+  const code = String(Math.floor(1000 + Math.random() * 9000));
+
+  const { error } = await sb.from('gc_coupons')
+    .update({ redeem_code: code, attempt_count: 0 })
+    .eq('coupon_id', activeCoupon.coupon_id);
+
+  if(error){
+    document.getElementById('verifyMsg').innerHTML = `<div class="msg error">${error.message}</div>`;
+    return;
+  }
+
+  activeCoupon.redeem_code = code;
+  activeCoupon.attempt_count = 0;
+
+  const smsBody = encodeURIComponent(`Your gift coupon redemption code is ${code}`);
+
+  document.getElementById('verifyMsg').innerHTML = `
+    <p class="hint">Send this code to the customer's phone via SMS:</p>
+    <div class="code-display">${code}</div>
+    <a class="sms-link" href="sms:${activeCoupon.employee_phone}?body=${smsBody}">📱 Open SMS to Send Code</a>
+    <label>Enter code customer reads back to you</label>
+    <input type="text" id="codeCheck" maxlength="4" placeholder="4-digit code">
+    <button onclick="verifyCode()">Confirm & Redeem</button>
+    <div class="attempts" id="attemptsMsg"></div>
+  `;
+}
+
+async function verifyCode(){
+  const entered = document.getElementById('codeCheck').value.trim();
+  const attemptsEl = document.getElementById('attemptsMsg');
+
+  if(entered === activeCoupon.redeem_code){
+    const { error } = await sb.from('gc_coupons')
+      .update({ status: 'redeemed', redeemed_at: new Date().toISOString() })
+      .eq('coupon_id', activeCoupon.coupon_id);
+
+    if(error){
+      attemptsEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+      return;
+    }
+
+    document.getElementById('scanResult').innerHTML = `
+      <div class="coupon-card">
+        <div class="msg success">✅ ₹${Number(activeCoupon.amount).toLocaleString('en-IN')} Redeemed Successfully</div>
+      </div>`;
+    return;
+  }
+
+  const newAttempts = activeCoupon.attempt_count + 1;
+
+  if(newAttempts >= 3){
+    const newCode = String(Math.floor(1000 + Math.random() * 9000));
+    await sb.from('gc_coupons')
+      .update({ redeem_code: newCode, attempt_count: 0 })
+      .eq('coupon_id', activeCoupon.coupon_id);
+    activeCoupon.redeem_code = newCode;
+    activeCoupon.attempt_count = 0;
+    const smsBody = encodeURIComponent(`Your gift coupon redemption code is ${newCode}`);
+    attemptsEl.innerHTML = `<div class="msg error">3 wrong attempts. New code generated: <b>${newCode}</b></div>
+      <a class="sms-link" href="sms:${activeCoupon.employee_phone}?body=${smsBody}">📱 Send New Code</a>`;
+    return;
+  }
+
+  activeCoupon.attempt_count = newAttempts;
+  await sb.from('gc_coupons').update({ attempt_count: newAttempts }).eq('coupon_id', activeCoupon.coupon_id);
+  attemptsEl.innerHTML = `<div class="msg error">Wrong code. ${3 - newAttempts} attempt(s) left.</div>`;
+}
+
+checkExistingSession();
+</script>
+
+</body>
+</html>

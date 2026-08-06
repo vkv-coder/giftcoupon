@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company Portal | Gift Coupon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root{
+    --navy:#0F2A3D; --navy-light:#173B54; --gold:#D4A24C;
+    --cream:#FAF8F4; --text:#3A4552; --muted:#8A95A1;
+    --green:#2F8F5B; --red:#C24545;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--text);min-height:100vh;}
+  header{
+    background:var(--navy);color:#fff;padding:18px 20px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  header h1{font-family:'Poppins',sans-serif;font-size:18px;font-weight:700;}
+  header a{color:var(--gold);text-decoration:none;font-size:13px;}
+  main{max-width:640px;margin:0 auto;padding:24px 16px 60px;}
+  .box{background:#fff;border:1px solid #EAE4D8;border-radius:14px;padding:22px;margin-bottom:18px;}
+  .box h2{font-family:'Poppins',sans-serif;font-size:16px;color:var(--navy);margin-bottom:14px;}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;margin-top:12px;}
+  label:first-of-type{margin-top:0;}
+  input,select,textarea{
+    width:100%;padding:11px 12px;border:1px solid #DDD5C4;border-radius:9px;
+    font-size:14px;font-family:'Inter',sans-serif;background:#fff;
+  }
+  textarea{min-height:110px;resize:vertical;font-family:monospace;}
+  button{
+    margin-top:16px;width:100%;padding:12px;border:none;border-radius:9px;
+    background:var(--navy);color:#fff;font-size:14px;font-weight:600;cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  button:hover{background:var(--navy-light);}
+  button.secondary{background:transparent;color:var(--navy);border:1px solid var(--navy);}
+  .link-btn{background:none;border:none;color:var(--navy);text-decoration:underline;font-size:13px;cursor:pointer;padding:0;margin-top:14px;width:auto;}
+  .msg{font-size:13px;margin-top:10px;padding:10px 12px;border-radius:8px;}
+  .msg.error{background:#FBEAEA;color:var(--red);}
+  .msg.success{background:#E9F5EE;color:var(--green);}
+  .msg.pending{background:#FFF6E5;color:#96721F;}
+  .balance{font-family:'Poppins',sans-serif;font-size:32px;font-weight:800;color:var(--navy);}
+  .balance-label{font-size:13px;color:var(--muted);margin-bottom:4px;}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;}
+  th,td{text-align:left;padding:9px 6px;border-bottom:1px solid #EFE9DC;}
+  th{color:var(--muted);font-weight:600;font-size:12px;}
+  .status-badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+  .status-issued{background:#FFF6E5;color:#96721F;}
+  .status-redeemed{background:#E9F5EE;color:var(--green);}
+  .copy-btn{background:none;border:1px solid #DDD5C4;color:var(--navy);font-size:11px;padding:4px 8px;border-radius:6px;width:auto;margin:0;cursor:pointer;}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;}
+  .hidden{display:none;}
+  .toggle-row{text-align:center;margin-top:14px;font-size:13px;color:var(--muted);}
+  .toggle-row button{width:auto;background:none;color:var(--navy);text-decoration:underline;padding:0;margin:0;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏢 Company Portal</h1>
+  <a href="index.html">← Home</a>
+</header>
+
+<main>
+
+  <!-- LOGIN / SIGNUP -->
+  <div id="authBox" class="box">
+    <h2 id="authTitle">Company Login</h2>
+    <label>Email</label>
+    <input type="email" id="authEmail" placeholder="you@company.com">
+    <label>Password</label>
+    <input type="password" id="authPassword" placeholder="••••••••">
+    <button onclick="handleAuth()">Login</button>
+    <div id="authMsg"></div>
+    <div class="toggle-row">
+      <span id="toggleText">New company?</span>
+      <button onclick="toggleMode()" id="toggleBtn">Create an account</button>
+    </div>
+  </div>
+
+  <!-- REGISTER COMPANY (after login, no company row yet) -->
+  <div id="registerBox" class="box hidden">
+    <h2>Register Your Company</h2>
+    <label>Company Name</label>
+    <input type="text" id="regCompanyName" placeholder="e.g. MK Engineering">
+    <label>Contact Person</label>
+    <input type="text" id="regContactPerson" placeholder="Your name">
+    <label>Contact Phone</label>
+    <input type="tel" id="regContactPhone" placeholder="98xxxxxxxx">
+    <label>Store</label>
+    <select id="regStoreSelect"></select>
+    <button onclick="registerCompany()">Submit Request</button>
+    <div id="regMsg"></div>
+  </div>
+
+  <!-- PENDING APPROVAL -->
+  <div id="pendingBox" class="box hidden">
+    <h2>Pending Approval</h2>
+    <p class="hint">Your request has been sent to the store. Once you complete payment with them, they'll approve your account and set your balance. Refresh this page after payment.</p>
+    <button class="secondary" onclick="location.reload()">Refresh</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="hidden">
+
+    <div class="box">
+      <div class="balance-label">Available Balance</div>
+      <div class="balance" id="balanceAmt">₹0</div>
+    </div>
+
+    <div class="box">
+      <h2>Generate Coupons</h2>
+      <p class="hint">Paste one employee per line: <b>Name, Phone, Amount</b></p>
+      <textarea id="bulkInput" placeholder="Raj Patel, 9876543210, 500
+Sneha Shah, 9898123456, 1000"></textarea>
+      <button onclick="generateCoupons()">Generate QR Coupons</button>
+      <div id="genMsg"></div>
+    </div>
+
+    <div class="box">
+      <h2>Issued Coupons</h2>
+      <table>
+        <thead><tr><th>Employee</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody id="couponRows"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let currentCompany = null;
+let isSignup = false;
+
+function toggleMode(){
+  isSignup = !isSignup;
+  document.getElementById('authTitle').innerText = isSignup ? 'Create Account' : 'Company Login';
+  document.querySelector('#authBox button[onclick="handleAuth()"]').innerText = isSignup ? 'Sign Up' : 'Login';
+  document.getElementById('toggleText').innerText = isSignup ? 'Already have an account?' : 'New company?';
+  document.getElementById('toggleBtn').innerText = isSignup ? 'Login instead' : 'Create an account';
+}
+
+async function handleAuth(){
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const msgEl = document.getElementById('authMsg');
+  msgEl.innerHTML = '';
+  if(!email || !password){
+    msgEl.innerHTML = '<div class="msg error">Enter email and password.</div>';
+    return;
+  }
+  let result;
+  if(isSignup){
+    result = await sb.auth.signUp({ email, password });
+  } else {
+    result = await sb.auth.signInWithPassword({ email, password });
+  }
+  if(result.error){
+    msgEl.innerHTML = `<div class="msg error">${result.error.message}</div>`;
+    return;
+  }
+  if(isSignup && !result.data.session){
+    msgEl.innerHTML = '<div class="msg pending">Check your email to confirm your account, then login.</div>';
+    return;
+  }
+  currentUser = result.data.user;
+  await loadCompanyState();
+}
+
+async function checkExistingSession(){
+  const { data } = await sb.auth.getSession();
+  if(data.session){
+    currentUser = data.session.user;
+    await loadCompanyState();
+  }
+}
+
+async function loadCompanyState(){
+  document.getElementById('authBox').classList.add('hidden');
+
+  const { data: company, error } = await sb
+    .from('gc_companies')
+    .select('*')
+    .eq('admin_user_id', currentUser.id)
+    .maybeSingle();
+
+  if(!company){
+    await loadStoreOptions();
+    document.getElementById('registerBox').classList.remove('hidden');
+    return;
+  }
+
+  currentCompany = company;
+
+  if(!company.approved){
+    document.getElementById('pendingBox').classList.remove('hidden');
+    return;
+  }
+
+  document.getElementById('dashboard').classList.remove('hidden');
+  document.getElementById('balanceAmt').innerText = '₹' + Number(company.balance).toLocaleString('en-IN');
+  await loadCoupons();
+}
+
+async function loadStoreOptions(){
+  const { data: stores } = await sb.from('gc_stores').select('store_id, store_name');
+  const sel = document.getElementById('regStoreSelect');
+  sel.innerHTML = (stores || []).map(s => `<option value="${s.store_id}">${s.store_name}</option>`).join('');
+}
+
+async function registerCompany(){
+  const company_name = document.getElementById('regCompanyName').value.trim();
+  const contact_person = document.getElementById('regContactPerson').value.trim();
+  const contact_phone = document.getElementById('regContactPhone').value.trim();
+  const store_id = document.getElementById('regStoreSelect').value;
+  const msgEl = document.getElementById('regMsg');
+
+  if(!company_name || !contact_person || !contact_phone || !store_id){
+    msgEl.innerHTML = '<div class="msg error">Fill all fields.</div>';
+    return;
+  }
+
+  const { error } = await sb.from('gc_companies').insert({
+    company_name, contact_person, contact_phone, store_id,
+    admin_user_id: currentUser.id, approved: false, balance: 0
+  });
+
+  if(error){
+    msgEl.innerHTML = `<div class="msg error">${error.message}</div>`;
+    return;
+  }
+
+  document.getElementById('registerBox').classList.add('hidden');
+  document.getElementById('pendingBox').classList.remove('hidden');
+}
+
+async function generateCoupons(){
+  const raw = document.getElementById('bulkInput').value.trim();
+  const msgEl = document.getElementById('genMsg');
+  msgEl.innerHTML = '';
+
+  if(!raw){
+    msgEl.innerHTML = '<div class="msg error">Paste employee list first.</div>';
+    return;
+  }
+
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const rows = [];
+  let total = 0;
+
+  for(const line of lines){
+    const parts = line.split(',').map(p => p.trim());
+    if(parts.length < 3){
+      msgEl.innerHTML = `<div class="msg error">Bad line: "${line}". Use Name, Phone, Amount.</div>`;
+      return;
+    }
+    const [name, phone, amtStr] = parts;
+    const amount = parseFloat(amtStr);
+    if(isNaN(amount) || amount <= 0){
+      msgEl.innerHTML = `<div class="msg error">Bad amount in line: "${line}".</div>`;
+      return;
+    }
+    total += amount;
+    rows.push({
+      company_id: currentCompany.company_id,
+      store_id: currentCompany.store_id,
+      employee_name: name,
+      employee_phone: phone,
+      amount: amount
+    });
+  }
+
+  if(total > currentCompany.balance){
+    msgEl.innerHTML = `<div class="msg error">Total ₹${total} exceeds your balance of ₹${currentCompany.balance}.</div>`;
+    return;
+  }
+
+  const { error: insertErr } = await sb.from('gc_coupons').insert(rows);
+  if(insertErr){
+    msgEl.innerHTML = `<div class="msg error">${insertErr.message}</div>`;
+    return;
+  }
+
+  const newBalance = currentCompany.balance - total;
+  const { error: balErr } = await sb.from('gc_companies')
+    .update({ balance: newBalance })
+    .eq('company_id', currentCompany.company_id);
+
+  if(balErr){
+    msgEl.innerHTML = `<div class="msg error">Coupons made, but balance update failed: ${balErr.message}</div>`;
+    return;
+  }
+
+  currentCompany.balance = newBalance;
+  document.getElementById('balanceAmt').innerText = '₹' + Number(newBalance).toLocaleString('en-IN');
+  document.getElementById('bulkInput').value = '';
+  msgEl.innerHTML = `<div class="msg success">${rows.length} coupon(s) generated successfully.</div>`;
+  await loadCoupons();
+}
+
+async function loadCoupons(){
+  const { data: coupons } = await sb
+    .from('gc_coupons')
+    .select('*')
+    .eq('company_id', currentCompany.company_id)
+    .order('created_at', { ascending: false });
+
+  const tbody = document.getElementById('couponRows');
+  tbody.innerHTML = (coupons || []).map(c => {
+    const link = `${location.origin}${location.pathname.replace('company.html','')}coupon.html?token=${c.qr_token}`;
+    const badgeClass = c.status === 'redeemed' ? 'status-redeemed' : 'status-issued';
+    return `<tr>
+      <td>${c.employee_name}<br><span class="hint">${c.employee_phone}</span></td>
+      <td>₹${Number(c.amount).toLocaleString('en-IN')}</td>
+      <td><span class="status-badge ${badgeClass}">${c.status}</span></td>
+      <td><button class="copy-btn" onclick="copyLink('${link}', this)">Copy Link</button></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" class="hint">No coupons yet.</td></tr>';
+}
+
+function copyLink(link, btn){
+  navigator.clipboard.writeText(link).then(() => {
+    const old = btn.innerText;
+    btn.innerText = 'Copied!';
+    setTimeout(() => btn.innerText = old, 1500);
+  });
+}
+
+checkExistingSession();
+</script>
+
+</body>
+</html>

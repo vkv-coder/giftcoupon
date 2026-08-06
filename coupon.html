@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Gift Coupon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  :root{
+    --navy:#0F2A3D; --gold:#D4A24C;
+    --cream:#FAF8F4; --text:#3A4552; --muted:#8A95A1;
+    --green:#2F8F5B; --red:#C24545;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'Inter',sans-serif;background:var(--cream);color:var(--text);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .ticket{
+    width:100%;max-width:360px;background:#fff;border-radius:20px;
+    box-shadow:0 8px 30px rgba(15,42,61,0.12);overflow:hidden;position:relative;
+  }
+  .store-strip{
+    background:var(--navy);color:#fff;padding:20px;text-align:center;
+  }
+  .store-strip img{width:44px;height:44px;border-radius:10px;object-fit:cover;margin-bottom:8px;background:#fff;}
+  .store-strip h2{font-family:'Poppins',sans-serif;font-size:16px;font-weight:700;}
+  .store-strip p{font-size:12px;color:#B9C4CE;margin-top:2px;}
+  .perforation{
+    height:0;border-top:2px dashed #DDD5C4;position:relative;margin:0 20px;
+  }
+  .perforation::before, .perforation::after{
+    content:'';position:absolute;top:-11px;width:22px;height:22px;border-radius:50%;background:var(--cream);
+  }
+  .perforation::before{left:-32px;}
+  .perforation::after{right:-32px;}
+  .body-section{padding:26px 24px;text-align:center;}
+  .company-tag{
+    display:inline-block;background:#FBF1DF;color:#96721F;font-size:12px;font-weight:600;
+    padding:5px 12px;border-radius:20px;margin-bottom:16px;
+  }
+  .amount{font-family:'Poppins',sans-serif;font-size:40px;font-weight:800;color:var(--navy);}
+  .amount-label{font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:20px;}
+  .employee-name{font-size:15px;font-weight:600;color:var(--navy);}
+  .qr-wrap{margin:22px 0;display:flex;justify-content:center;}
+  #qrCanvas{border-radius:10px;}
+  .status-badge{
+    display:inline-block;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:700;margin-top:6px;
+  }
+  .status-issued{background:#E9F5EE;color:var(--green);}
+  .status-redeemed{background:#FBEAEA;color:var(--red);}
+  .store-address{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.5;}
+  .instructions{font-size:12px;color:var(--muted);margin-top:14px;padding:0 10px;}
+  .redeemed-overlay{
+    position:absolute;inset:0;background:rgba(255,255,255,0.85);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .redeemed-stamp{
+    border:4px solid var(--red);color:var(--red);font-family:'Poppins',sans-serif;
+    font-weight:800;font-size:22px;padding:10px 22px;border-radius:10px;transform:rotate(-8deg);
+    letter-spacing:2px;
+  }
+  .loading, .error-box{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px;}
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:20px;}
+</style>
+</head>
+<body>
+
+  <div id="content">
+    <div class="loading">Loading your coupon…</div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://jqqnnkzozjskziaizajg.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxcW5ua3pvempza3ppYWl6YWpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5Mjk1ODAsImV4cCI6MjA4ODUwNTU4MH0.sEYeWnm0dvuw8bLSVnQhqmgV8LB-pELjpuVIa3Us1Gg";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function loadCoupon(){
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const contentEl = document.getElementById('content');
+
+  if(!token){
+    contentEl.innerHTML = '<div class="error-box">No coupon token found in this link.</div>';
+    return;
+  }
+
+  const { data: coupon, error } = await sb
+    .from('gc_coupon_public')
+    .select('*')
+    .eq('qr_token', token)
+    .maybeSingle();
+
+  if(error || !coupon){
+    contentEl.innerHTML = '<div class="error-box">Coupon not found. Please check your link.</div>';
+    return;
+  }
+
+  const isRedeemed = coupon.status === 'redeemed';
+
+  contentEl.innerHTML = `
+    <div class="ticket">
+      ${isRedeemed ? '<div class="redeemed-overlay"><div class="redeemed-stamp">REDEEMED</div></div>' : ''}
+      <div class="store-strip">
+        ${coupon.store_logo_url ? `<img src="${coupon.store_logo_url}" alt="">` : ''}
+        <h2>${coupon.store_name}</h2>
+        <p>Valid at this store only</p>
+      </div>
+      <div class="perforation"></div>
+      <div class="body-section">
+        <div class="company-tag">Gift from ${coupon.company_name}</div>
+        <div class="amount">₹${Number(coupon.amount).toLocaleString('en-IN')}</div>
+        <div class="amount-label">Coupon Value</div>
+        <div class="employee-name">${coupon.employee_name}</div>
+        <span class="status-badge ${isRedeemed ? 'status-redeemed' : 'status-issued'}">
+          ${isRedeemed ? 'Already Used' : 'Ready to Use'}
+        </span>
+        <div class="qr-wrap"><canvas id="qrCanvas"></canvas></div>
+        <div class="instructions">Show this QR code to the store cashier to redeem your gift coupon.</div>
+        <div class="store-address">${coupon.store_address || ''}</div>
+      </div>
+    </div>
+    <footer>Powered by AnyApps.in</footer>
+  `;
+
+  if(!isRedeemed){
+    QRCode.toCanvas(document.getElementById('qrCanvas'), token, {
+      width: 190,
+      margin: 1,
+      color: { dark: '#0F2A3D', light: '#FFFFFF' }
+    });
+  }
+}
+
+loadCoupon();
+</script>
+
+</body>
+</html>
