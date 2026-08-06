@@ -130,7 +130,7 @@
       <p class="hint">Paste one employee per line: <b>Name, Phone, Amount</b></p>
       <textarea id="bulkInput" placeholder="Raj Patel, 9876543210, 500
 Sneha Shah, 9898123456, 1000"></textarea>
-      <button onclick="generateCoupons()">Generate QR Coupons</button>
+      <button onclick="generateCoupons()" id="generateBtn">Generate QR Coupons</button>
       <div id="genMsg"></div>
     </div>
 
@@ -159,6 +159,7 @@ let currentCompany = null;
 let isSignup = false;
 let lastLoadedCoupons = [];
 let lastBatchCoupons = [];
+let lastGeneratedRaw = '';
 
 function couponLink(token){
   return `${location.origin}${location.pathname.replace('company.html','')}coupon.html?token=${token}`;
@@ -337,6 +338,11 @@ async function generateCoupons(){
     return;
   }
 
+  if(raw === lastGeneratedRaw){
+    const proceed = confirm('You just generated coupons for this exact same list. Generate again and issue duplicates?');
+    if(!proceed) return;
+  }
+
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
   const rows = [];
   let total = 0;
@@ -378,10 +384,21 @@ async function generateCoupons(){
 
   const rpcRows = rows.map(r => ({ name: r.employee_name, phone: r.employee_phone, amount: r.amount }));
 
-  const { data: result, error: genErr } = await sb.rpc('gc_generate_coupons', {
-    p_company_id: currentCompany.company_id,
-    p_rows: rpcRows
-  });
+  const genBtn = document.getElementById('generateBtn');
+  genBtn.disabled = true;
+  const originalBtnText = genBtn.innerText;
+  genBtn.innerText = 'Generating...';
+
+  let result, genErr;
+  try{
+    ({ data: result, error: genErr } = await sb.rpc('gc_generate_coupons', {
+      p_company_id: currentCompany.company_id,
+      p_rows: rpcRows
+    }));
+  } finally {
+    genBtn.disabled = false;
+    genBtn.innerText = originalBtnText;
+  }
 
   if(genErr){
     msgEl.innerHTML = `<div class="msg error">${genErr.message}</div>`;
@@ -395,6 +412,7 @@ async function generateCoupons(){
 
   currentCompany.balance = currentCompany.balance - result.total;
   document.getElementById('balanceAmt').innerText = '₹' + Number(currentCompany.balance).toLocaleString('en-IN');
+  lastGeneratedRaw = raw;
   document.getElementById('bulkInput').value = '';
 
   lastBatchCoupons = result.coupons || [];
