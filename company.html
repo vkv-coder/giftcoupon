@@ -177,9 +177,19 @@ function exportExcel(coupons, filename){
     'Phone': c.employee_phone,
     'Amount': c.amount,
     'Status': c.status || 'issued',
-    'Coupon Link': couponLink(c.qr_token)
+    'Coupon Link': couponLink(c.qr_token),
+    'WhatsApp Link': waLink(c)
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
+
+  coupons.forEach((c, i) => {
+    const rowNum = i + 2; // row 1 is the header
+    const couponCell = ws['E' + rowNum];
+    const waCell = ws['F' + rowNum];
+    if(couponCell) couponCell.l = { Target: couponLink(c.qr_token) };
+    if(waCell) waCell.l = { Target: waLink(c), Tooltip: 'Click to open WhatsApp' };
+  });
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Coupons');
   XLSX.writeFile(wb, filename);
