@@ -55,6 +55,7 @@
   .status-redeemed{background:#E9F5EE;color:var(--green);}
   .copy-btn{background:none;border:1px solid #DDD5C4;color:var(--navy);font-size:11px;padding:4px 8px;border-radius:6px;width:auto;margin:0;cursor:pointer;}
   .wa-btn{background:#25D366;color:#fff;font-size:11px;padding:4px 8px;border-radius:6px;width:auto;margin:0 0 0 6px;cursor:pointer;text-decoration:none;display:inline-block;border:none;}
+  .print-row-btn{background:none;border:1px solid #DDD5C4;color:var(--navy);font-size:11px;padding:4px 8px;border-radius:6px;width:auto;margin:0;cursor:pointer;text-decoration:none;display:inline-block;}
   .row-actions{display:flex;flex-wrap:wrap;gap:6px;}
   .box-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .box-header h2{margin-bottom:0;}
@@ -448,6 +449,7 @@ async function loadCoupons(){
         <div class="row-actions">
           <button class="copy-btn" onclick="copyLink('${link}', this)">Copy Link</button>
           <a class="wa-btn" href="${waLink(c)}" target="_blank">📱 Send</a>
+          <a class="print-row-btn" href="${link}&print=1" target="_blank">🖨️ Print</a>
         </div>
       </td>
     </tr>`;
