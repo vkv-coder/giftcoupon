@@ -67,7 +67,10 @@
 
 <header>
   <h1>🏬 Store Portal</h1>
-  <a href="index.html">← Home</a>
+  <div>
+    <a href="index.html">← Home</a>
+    <a href="#" onclick="logout(); return false;" id="logoutLink" class="hidden">&nbsp;|&nbsp;Logout</a>
+  </div>
 </header>
 
 <main>
@@ -194,8 +197,13 @@ async function checkExistingSession(){
   }
 }
 
+function logout(){
+  sb.auth.signOut().then(() => location.reload());
+}
+
 async function loadStoreState(){
   document.getElementById('authBox').classList.add('hidden');
+  document.getElementById('logoutLink').classList.remove('hidden');
 
   const { data: store } = await sb
     .from('gc_stores')
