@@ -132,10 +132,7 @@
     <!-- ALL COMPANIES -->
     <div id="panelAll" class="box hidden">
       <h2>All Companies</h2>
-      <table>
-        <thead><tr><th>Company</th><th>Balance</th><th>Status</th></tr></thead>
-        <tbody id="allCompaniesRows"></tbody>
-      </table>
+      <div id="allCompaniesList"></div>
     </div>
   </div>
 
@@ -317,14 +314,38 @@ async function loadAllCompanies(){
     .eq('store_id', currentStore.store_id)
     .order('created_at', { ascending: false });
 
-  const tbody = document.getElementById('allCompaniesRows');
-  tbody.innerHTML = (companies || []).map(c => `
-    <tr>
-      <td>${c.company_name}</td>
-      <td>₹${Number(c.balance).toLocaleString('en-IN')}</td>
-      <td>${c.approved ? '<span style="color:#2F8F5B">Approved</span>' : '<span style="color:#96721F">Pending</span>'}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="3" class="hint">No companies yet.</td></tr>';
+  const { data: coupons } = await sb
+    .from('gc_coupons')
+    .select('company_id, amount, status')
+    .eq('store_id', currentStore.store_id);
+
+  const usage = {};
+  (coupons || []).forEach(c => {
+    if(!usage[c.company_id]) usage[c.company_id] = { issued: 0, redeemed: 0 };
+    usage[c.company_id].issued += Number(c.amount);
+    if(c.status === 'redeemed') usage[c.company_id].redeemed += Number(c.amount);
+  });
+
+  const inr = n => '₹' + Number(n).toLocaleString('en-IN');
+  const list = document.getElementById('allCompaniesList');
+
+  list.innerHTML = (companies || []).map(c => {
+    const u = usage[c.company_id] || { issued: 0, redeemed: 0 };
+    const outstanding = u.issued - u.redeemed;
+    const statusHtml = c.approved
+      ? '<span style="color:#2F8F5B">Approved</span>'
+      : '<span style="color:#96721F">Pending</span>';
+    return `
+      <div class="coupon-card">
+        <div class="row"><span>Company</span><span><b>${c.company_name}</b></span></div>
+        <div class="row"><span>Status</span><span>${statusHtml}</span></div>
+        <div class="row"><span>Balance Left</span><span>${inr(c.balance)}</span></div>
+        <div class="row"><span>Total Issued</span><span>${inr(u.issued)}</span></div>
+        <div class="row"><span>Total Redeemed</span><span>${inr(u.redeemed)}</span></div>
+        <div class="row"><span>Issued, Not Yet Redeemed</span><span>${inr(outstanding)}</span></div>
+      </div>
+    `;
+  }).join('') || '<p class="hint">No companies yet.</p>';
 }
 
 function startScanner(){
