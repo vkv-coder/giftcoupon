@@ -221,27 +221,38 @@ async function loadStoreState(){
   document.getElementById('authBox').classList.add('hidden');
   document.getElementById('logoutLink').classList.remove('hidden');
 
-  const { data: store } = await sb
-    .from('gc_stores')
-    .select('*')
-    .eq('owner_user_id', currentUser.id)
-    .maybeSingle();
+  try {
+    const { data: store, error } = await sb
+      .from('gc_stores')
+      .select('*')
+      .eq('owner_user_id', currentUser.id)
+      .maybeSingle();
 
-  if(!store){
-    document.getElementById('createStoreBox').classList.remove('hidden');
-    return;
+    if(error){
+      document.getElementById('authBox').classList.remove('hidden');
+      document.getElementById('authMsg').innerHTML = '<div class="msg error">Could not load your account. Please check your connection and try again.</div>';
+      return;
+    }
+
+    if(!store){
+      document.getElementById('createStoreBox').classList.remove('hidden');
+      return;
+    }
+
+    currentStore = store;
+
+    if(!store.approved){
+      document.getElementById('storePendingBox').classList.remove('hidden');
+      return;
+    }
+
+    document.getElementById('dashboard').classList.remove('hidden');
+    await loadPending();
+    await loadAllCompanies();
+  } catch(err) {
+    document.getElementById('authBox').classList.remove('hidden');
+    document.getElementById('authMsg').innerHTML = '<div class="msg error">Something went wrong. Please check your connection and try again.</div>';
   }
-
-  currentStore = store;
-
-  if(!store.approved){
-    document.getElementById('storePendingBox').classList.remove('hidden');
-    return;
-  }
-
-  document.getElementById('dashboard').classList.remove('hidden');
-  await loadPending();
-  await loadAllCompanies();
 }
 
 async function createStore(){
@@ -279,13 +290,18 @@ function showTab(name){
 }
 
 async function loadPending(){
-  const { data: companies } = await sb
+  const list = document.getElementById('pendingList');
+  const { data: companies, error } = await sb
     .from('gc_companies')
     .select('*')
     .eq('store_id', currentStore.store_id)
     .eq('approved', false);
 
-  const list = document.getElementById('pendingList');
+  if(error){
+    list.innerHTML = '<p class="hint">Could not load pending requests. Check your connection and refresh.</p>';
+    return;
+  }
+
   if(!companies || companies.length === 0){
     list.innerHTML = '<p class="hint">No pending requests.</p>';
     return;
@@ -328,16 +344,25 @@ async function approveCompany(companyId){
 }
 
 async function loadAllCompanies(){
-  const { data: companies } = await sb
+  const rows = document.getElementById('allCompaniesRows');
+  const summary = document.getElementById('companiesSummary');
+
+  const { data: companies, error: companiesErr } = await sb
     .from('gc_companies')
     .select('*')
     .eq('store_id', currentStore.store_id)
     .order('created_at', { ascending: false });
 
-  const { data: coupons } = await sb
+  const { data: coupons, error: couponsErr } = await sb
     .from('gc_coupons')
     .select('company_id, amount, status')
     .eq('store_id', currentStore.store_id);
+
+  if(companiesErr || couponsErr){
+    rows.innerHTML = '<tr><td colspan="6" class="hint">Could not load company data. Check your connection and refresh.</td></tr>';
+    summary.innerHTML = '';
+    return;
+  }
 
   const usage = {};
   (coupons || []).forEach(c => {
@@ -347,8 +372,6 @@ async function loadAllCompanies(){
   });
 
   const inr = n => '₹' + Number(n).toLocaleString('en-IN');
-  const rows = document.getElementById('allCompaniesRows');
-  const summary = document.getElementById('companiesSummary');
 
   const totals = { count: 0, approved: 0, balance: 0, issued: 0, redeemed: 0, outstanding: 0 };
 

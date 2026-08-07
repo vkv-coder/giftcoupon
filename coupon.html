@@ -100,20 +100,21 @@ async function loadCoupon(){
     return;
   }
 
-  const { data: coupon, error } = await sb
-    .from('gc_coupon_public')
-    .select('*')
-    .eq('qr_token', token)
-    .maybeSingle();
+  try {
+    const { data: coupon, error } = await sb
+      .from('gc_coupon_public')
+      .select('*')
+      .eq('qr_token', token)
+      .maybeSingle();
 
-  if(error || !coupon){
-    contentEl.innerHTML = '<div class="error-box">Coupon not found. Please check your link.</div>';
-    return;
-  }
+    if(error || !coupon){
+      contentEl.innerHTML = '<div class="error-box">Coupon not found. Please check your link.</div>';
+      return;
+    }
 
-  const isRedeemed = coupon.status === 'redeemed';
+    const isRedeemed = coupon.status === 'redeemed';
 
-  contentEl.innerHTML = `
+    contentEl.innerHTML = `
     <div class="ticket">
       ${isRedeemed ? '<div class="redeemed-overlay"><div class="redeemed-stamp">REDEEMED</div></div>' : ''}
       <div class="store-strip">
@@ -137,18 +138,21 @@ async function loadCoupon(){
     </div>
     ${!isRedeemed ? '<button class="print-btn" onclick="window.print()">🖨️ Print This Card</button>' : ''}
     <footer><a href="index.html">Powered by AnyApps.in</a></footer>
-  `;
+    `;
 
-  if(!isRedeemed){
-    await QRCode.toCanvas(document.getElementById('qrCanvas'), token, {
-      width: 190,
-      margin: 1,
-      color: { dark: '#0F2A3D', light: '#FFFFFF' }
-    });
+    if(!isRedeemed){
+      await QRCode.toCanvas(document.getElementById('qrCanvas'), token, {
+        width: 190,
+        margin: 1,
+        color: { dark: '#0F2A3D', light: '#FFFFFF' }
+      });
 
-    if(params.get('print') === '1'){
-      window.print();
+      if(params.get('print') === '1'){
+        window.print();
+      }
     }
+  } catch(err) {
+    contentEl.innerHTML = '<div class="error-box">Something went wrong loading this coupon. Please check your connection and try again.</div>';
   }
 }
 

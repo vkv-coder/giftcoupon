@@ -273,33 +273,50 @@ async function loadCompanyState(){
   document.getElementById('authBox').classList.add('hidden');
   document.getElementById('logoutLink').classList.remove('hidden');
 
-  const { data: company, error } = await sb
-    .from('gc_companies')
-    .select('*')
-    .eq('admin_user_id', currentUser.id)
-    .maybeSingle();
+  try {
+    const { data: company, error } = await sb
+      .from('gc_companies')
+      .select('*')
+      .eq('admin_user_id', currentUser.id)
+      .maybeSingle();
 
-  if(!company){
-    await loadStoreOptions();
-    document.getElementById('registerBox').classList.remove('hidden');
-    return;
+    if(error){
+      document.getElementById('authBox').classList.remove('hidden');
+      document.getElementById('authMsg').innerHTML = '<div class="msg error">Could not load your account. Please check your connection and try again.</div>';
+      return;
+    }
+
+    if(!company){
+      await loadStoreOptions();
+      document.getElementById('registerBox').classList.remove('hidden');
+      return;
+    }
+
+    currentCompany = company;
+
+    if(!company.approved){
+      document.getElementById('pendingBox').classList.remove('hidden');
+      return;
+    }
+
+    document.getElementById('dashboard').classList.remove('hidden');
+    document.getElementById('balanceAmt').innerText = '₹' + Number(company.balance).toLocaleString('en-IN');
+    await loadCoupons();
+  } catch(err) {
+    document.getElementById('authBox').classList.remove('hidden');
+    document.getElementById('authMsg').innerHTML = '<div class="msg error">Something went wrong. Please check your connection and try again.</div>';
   }
-
-  currentCompany = company;
-
-  if(!company.approved){
-    document.getElementById('pendingBox').classList.remove('hidden');
-    return;
-  }
-
-  document.getElementById('dashboard').classList.remove('hidden');
-  document.getElementById('balanceAmt').innerText = '₹' + Number(company.balance).toLocaleString('en-IN');
-  await loadCoupons();
 }
 
 async function loadStoreOptions(){
-  const { data: stores } = await sb.from('gc_stores').select('store_id, store_name');
   const sel = document.getElementById('regStoreSelect');
+  const { data: stores, error } = await sb.from('gc_stores').select('store_id, store_name');
+
+  if(error){
+    sel.innerHTML = '<option value="">Could not load stores - refresh and try again</option>';
+    return;
+  }
+
   sel.innerHTML = (stores || []).map(s => `<option value="${s.store_id}">${s.store_name}</option>`).join('');
 }
 
@@ -429,15 +446,20 @@ function exportBatchExcel(){
 }
 
 async function loadCoupons(){
-  const { data: coupons } = await sb
+  const tbody = document.getElementById('couponRows');
+  const { data: coupons, error } = await sb
     .from('gc_coupons')
     .select('*')
     .eq('company_id', currentCompany.company_id)
     .order('created_at', { ascending: false });
 
+  if(error){
+    tbody.innerHTML = '<tr><td colspan="4" class="hint">Could not load coupons. Check your connection and refresh.</td></tr>';
+    return;
+  }
+
   lastLoadedCoupons = coupons || [];
 
-  const tbody = document.getElementById('couponRows');
   tbody.innerHTML = lastLoadedCoupons.map(c => {
     const link = couponLink(c.qr_token);
     const badgeClass = c.status === 'redeemed' ? 'status-redeemed' : 'status-issued';

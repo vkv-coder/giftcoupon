@@ -128,44 +128,51 @@ async function showDashboard(){
 }
 
 async function loadPendingStores(){
-  const { data: stores, error } = await sb.rpc('gc_admin_list_pending_stores', { p_token: adminToken });
   const list = document.getElementById('pendingList');
 
-  if(error){
-    localStorage.removeItem('gc_admin_token');
-    document.getElementById('dashboard').classList.add('hidden');
-    document.getElementById('loginBox').classList.remove('hidden');
-    document.getElementById('loginMsg').innerHTML = '<div class="msg error">Session expired. Log in again.</div>';
-    return;
-  }
+  try {
+    const { data: stores, error } = await sb.rpc('gc_admin_list_pending_stores', { p_token: adminToken });
 
-  if(!stores || stores.length === 0){
-    list.innerHTML = '<p class="hint">No pending store approvals.</p>';
-    return;
-  }
+    if(error){
+      localStorage.removeItem('gc_admin_token');
+      document.getElementById('dashboard').classList.add('hidden');
+      document.getElementById('loginBox').classList.remove('hidden');
+      document.getElementById('loginMsg').innerHTML = '<div class="msg error">Session expired. Log in again.</div>';
+      return;
+    }
 
-  list.innerHTML = stores.map(s => `
-    <div class="coupon-card">
-      <div class="row"><span>Store</span><span><b>${s.store_name}</b></span></div>
-      <div class="row"><span>Address</span><span>${s.store_address || '-'}</span></div>
-      <div class="row"><span>Contact Phone</span><span>${s.contact_phone || '-'}</span></div>
-      <div class="row"><span>Owner</span><span>${s.owner_email}</span></div>
-      <button class="gold" onclick="approveStore('${s.store_id}')">Approve Store</button>
-      <div id="approveMsg-${s.store_id}"></div>
-    </div>
-  `).join('');
+    if(!stores || stores.length === 0){
+      list.innerHTML = '<p class="hint">No pending store approvals.</p>';
+      return;
+    }
+
+    list.innerHTML = stores.map(s => `
+      <div class="coupon-card">
+        <div class="row"><span>Store</span><span><b>${s.store_name}</b></span></div>
+        <div class="row"><span>Address</span><span>${s.store_address || '-'}</span></div>
+        <div class="row"><span>Contact Phone</span><span>${s.contact_phone || '-'}</span></div>
+        <div class="row"><span>Owner</span><span>${s.owner_email}</span></div>
+        <button class="gold" onclick="approveStore('${s.store_id}')">Approve Store</button>
+        <div id="approveMsg-${s.store_id}"></div>
+      </div>
+    `).join('');
+  } catch(err) {
+    list.innerHTML = '<p class="hint">Could not load pending stores. Check your connection and refresh.</p>';
+  }
 }
 
 async function loadApprovedStores(){
-  const { data: stores, error } = await sb.rpc('gc_admin_list_approved_stores', { p_token: adminToken });
   const rows = document.getElementById('approvedRows');
 
-  if(error){
-    rows.innerHTML = `<tr><td colspan="4" class="hint">Could not load approved stores.</td></tr>`;
-    return;
-  }
+  try {
+    const { data: stores, error } = await sb.rpc('gc_admin_list_approved_stores', { p_token: adminToken });
 
-  rows.innerHTML = (stores || []).map(s => `
+    if(error){
+      rows.innerHTML = `<tr><td colspan="4" class="hint">Could not load approved stores.</td></tr>`;
+      return;
+    }
+
+    rows.innerHTML = (stores || []).map(s => `
     <tr>
       <td><b>${s.store_name}</b></td>
       <td>${s.store_address || '-'}</td>
@@ -173,6 +180,9 @@ async function loadApprovedStores(){
       <td>${s.owner_email}</td>
     </tr>
   `).join('') || '<tr><td colspan="4" class="hint">No approved stores yet.</td></tr>';
+  } catch(err) {
+    rows.innerHTML = `<tr><td colspan="4" class="hint">Could not load approved stores. Check your connection.</td></tr>`;
+  }
 }
 
 async function approveStore(storeId){
