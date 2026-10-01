@@ -101,11 +101,9 @@ async function loadCoupon(){
   }
 
   try {
-    const { data: coupon, error } = await sb
-      .from('gc_coupon_public')
-      .select('*')
-      .eq('qr_token', token)
-      .maybeSingle();
+    const { data: rows, error } = await sb
+      .rpc('gc_lookup_coupon', { p_qr_token: token });
+    const coupon = rows && rows[0];
 
     if(error || !coupon){
       contentEl.innerHTML = '<div class="error-box">Coupon not found. Please check your link.</div>';
